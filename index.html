@@ -1,0 +1,1359 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Network & GPS Checker — Tool</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#6ee7b7; --accent-2:#60a5fa; --glass: rgba(255,255,255,0.04);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#071026,#071226);color:#e6eef6}
+    .wrap{max-width:980px;margin:36px auto;padding:28px;border-radius:16px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 10px 40px rgba(2,6,23,0.6);display:grid;grid-template-columns:1fr 420px;gap:24px;position:relative}
+
+    .hero{padding:6px 12px}
+    h1{margin:0 0 6px;font-size:20px}
+    p.lead{margin:0;color:var(--muted)}
+
+    .card{background:linear-gradient(180deg,var(--card), #05101b);border-radius:12px;padding:18px;border:1px solid rgba(255,255,255,0.03)}
+    
+    /* Updated controls layout with flexbox */
+    .controls{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+    .controls-group{display:flex;gap:12px;}
+
+    .btn{position:relative;overflow:hidden;border:0;padding:14px 16px;border-radius:10px;font-weight:700;cursor:pointer;color:#062029;background:linear-gradient(180deg,var(--accent), #34d399);box-shadow:0 8px 0 rgba(6,32,22,0.45);transition:transform .14s ease, box-shadow .14s ease;flex: 1;}
+    .btn.secondary{background:linear-gradient(180deg,var(--accent-2), #3b82f6);box-shadow:0 8px 0 rgba(8,22,52,0.55);color:white}
+    .btn:active{transform:translateY(6px);box-shadow:none}
+    .btn:disabled{opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none;}
+
+    /* ripple effect */
+    .ripple{position:absolute;border-radius:50%;transform:scale(0);background:rgba(255,255,255,0.25);animation:ripple .6s linear;pointer-events:none}
+    @keyframes ripple{to{transform:scale(6);opacity:0}}
+
+    .input-inline{display:flex;gap:8px;flex:1;}
+    input[type=text]{flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:var(--muted)}
+
+    /* Updated log styles with scrollbar */
+    .log{margin-top:14px;font-family:monospace;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));padding:12px;border-radius:8px;max-height:200px;overflow-y:auto;display:flex;flex-direction:column-reverse;}
+    .log-entry { padding-top: 8px; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); }
+    .log-entry:first-child { border-bottom: none; }
+
+    /* right panel */
+    .side-top{display:flex;gap:10px;align-items:center}
+    .stat{flex:1;padding:14px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));text-align:center}
+    .stat h3{margin:0;font-size:18px}
+    .stat p{margin:6px 0 0;color:var(--muted)}
+    
+    /* Speedometer styles */
+    .speedometer {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin: 20px auto;
+      transition: opacity 0.3s ease-in-out;
+    }
+    .speedometer .outer-circle {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent) 0%, var(--accent-2) 0%);
+      transition: background 0.5s ease-in-out;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .speedometer .inner-circle {
+      width: 85%;
+      height: 85%;
+      background: var(--card);
+      border-radius: 50%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+    }
+    .speedometer .speed-text {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #e6eef6;
+    }
+    .speedometer .unit-text {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .speedometer .label-text {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: -10px;
+    }
+    .speedometer-needle {
+      position: absolute;
+      bottom: 50%;
+      left: 50%;
+      width: 4px;
+      height: 75px;
+      background: #e6eef6;
+      transform-origin: bottom center;
+      transform: translateX(-50%) rotate(0deg);
+      border-radius: 2px 2px 0 0;
+      transition: transform 0.5s ease-out;
+      z-index: 10;
+    }
+
+    .speed-results {
+      margin-top: 24px;
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      text-align: center;
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .speed-result-card {
+      background: linear-gradient(180deg, var(--card), #05101b);
+      border-radius: 12px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.03);
+    }
+
+    .speed-result-card h3 {
+      font-size: 1rem;
+      margin: 0 0 8px 0;
+      color: var(--muted);
+    }
+    .speed-result-card p {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin: 0;
+      color: var(--accent);
+    }
+    .speed-result-card.upload p {
+      color: var(--accent-2);
+    }
+
+
+    /* loader */
+    .loader{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,0.06);border-top-color:var(--accent);animation:spin .9s linear infinite;margin:auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* animated success */
+    .success{display:inline-block;padding:6px 10px;border-radius:20px;background:linear-gradient(90deg,#052e1d,#0b3f2a);color:var(--accent);font-weight:700}
+    .error-text { color: #f87171; }
+
+    footer{grid-column:1/-1;margin-top:18px;color:var(--muted);font-size:13px;text-align:center}
+
+    /* Language selector styles */
+    .language-selector {
+        position: absolute;
+        top: 10px; /* Moved up */
+        right: 10px; /* Moved slightly more to the right */
+        padding: 8px;
+        border-radius: 8px;
+        background: var(--card);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        color: var(--muted);
+    }
+
+    /* small screens */
+    @media (max-width:920px){.wrap{grid-template-columns:1fr;padding:18px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="language-selector">
+        <select id="language-select">
+            <option value="en">English</option>
+            <option value="vi">Tiếng Việt</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="ko">한국어</option>
+            <option value="ja">日本語</option>
+            <option value="zh">中文</option>
+            <option value="hi">हिन्दी</option>
+            <option value="ar">العربية</option>
+            <option value="nl">Nederlands</option>
+            <option value="he">עברית</option>
+        </select>
+    </div>
+    <div>
+      <div class="hero">
+        <h1 id="hero-title">Network & GPS Checker</h1>
+        <p class="lead" id="hero-lead">Kiểm tra nhanh GPS, DNS, IP công cộng và IP nội bộ trên trình duyệt.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;gap:12px;align-items:center;justify-content:space-between">
+          <div style="font-weight:700" id="actions-title">Hành động</div>
+          <div style="color:var(--muted);font-size:13px" id="actions-subtitle">Click vào nút để kiểm tra</div>
+        </div>
+
+        <!-- New layout for controls -->
+        <div class="controls">
+          <button class="btn" id="btn-gps">Check GPS</button>
+          <div class="controls-group">
+            <button class="btn secondary" id="btn-ip-public">Check IP mạng</button>
+            <button class="btn" id="btn-ip-local">Check IP máy</button>
+          </div>
+          <div class="controls-group">
+            <div class="input-inline">
+              <input id="dns-name" type="text" placeholder="Nhập domain (vd: example.com)" value="example.com">
+            </div>
+            <button class="btn" id="btn-check-dns-server">kiểm tra địa chỉ máy chủ</button>
+            <button class="btn secondary" id="btn-check-web-ip">kiểm tra ip web</button>
+          </div>
+        </div>
+
+        <div class="log" id="log">
+          <!-- logs go here -->
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="side-top">
+          <div class="stat">
+            <h3 id="gps-status">—</h3>
+            <p id="gps-status-label">GPS status</p>
+          </div>
+          <div class="stat">
+            <h3 id="dns-status">—</h3>
+            <p id="dns-status-label">DNS status</p>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="card" style="padding:12px;background:transparent;border:1px dashed rgba(255,255,255,0.03)">
+            <div style="font-size:13px;color:var(--muted)" id="ip-public-label">IP công cộng</div>
+            <div style="margin-top:6px;font-weight:700" id="ip-public">—</div>
+          </div>
+          <div class="card" style="padding:12px;background:transparent;border:1px dashed rgba(255,255,255,0.03)">
+            <div style="font-size:13px;color:var(--muted)" id="ip-local-label">IP nội bộ</div>
+            <div style="margin-top:6px;font-weight:700" id="ip-local">—</div>
+          </div>
+        </div>
+        
+        <!-- Speedometer Section -->
+        <div class="speedometer-container" style="margin-top: 24px; text-align: center;">
+          <div id="speedometer" class="speedometer">
+            <div id="outer-circle" class="outer-circle">
+              <div class="inner-circle">
+                <div id="speed-text" class="speed-text">0.00</div>
+                <div id="speed-unit" class="unit-text">Mbps</div>
+              </div>
+            </div>
+            <div id="speed-label" class="label-text">Tải về</div>
+            <div id="speedometer-needle" class="speedometer-needle"></div>
+          </div>
+        </div>
+
+        <!-- Speed Results Section -->
+        <div id="speed-results" class="speed-results">
+          <div class="speed-result-card">
+            <h3 id="download-title">Tải về</h3>
+            <p id="download-speed">0.00 Mbps</p>
+          </div>
+          <div class="speed-result-card upload">
+            <h3 id="upload-title">Tải lên</h3>
+            <p id="upload-speed">0.00 Mbps</p>
+          </div>
+        </div>
+        
+        <!-- Speed button moved to here -->
+        <button class="btn" id="btn-speed" style="margin-top:24px; width: 100%;">Check Speed</button>
+
+        <div style="margin-top:14px;text-align:center">
+          <div id="mini-loader" style="display:none"><div class="loader"></div></div>
+          <div id="mini-status" style="margin-top:12px;color:var(--muted)"></div>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+      <div style="text-align:center;color:var(--muted);font-size:13px" id="footer-note">Phiên bản demo — một số chức năng phụ thuộc trình duyệt và CORS</div>
+    </div>
+
+    <footer id="main-footer">© xTer Network Checker 2025 • Giao diện Demo</footer>
+  </div>
+
+  <audio id="click-sound" preload="auto">
+    <!-- A small, short click sound encoded as a data URI -->
+    <source src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBIAAAABAAEAQB8AACJWAAACABAAZGF0YSIAAAAASABAAkABEgAAAAAIABAAQgAAAA=" type="audio/wav">
+  </audio>
+
+  <script>
+    const translations = {
+      en: {
+        heroTitle: "Network & GPS Checker",
+        heroLead: "Quickly check GPS, DNS, public IP, and local IP in your browser — beautiful UI, effects, and click sound.",
+        actionsTitle: "Actions",
+        actionsSubtitle: "Click a button to test",
+        btnGPS: "Check GPS",
+        btnIPPublic: "Check Public IP",
+        btnIPLocal: "Check Local IP",
+        dnsPlaceholder: "Enter domain (e.g., example.com)",
+        btnCheckDnsServer: "Check Server Address",
+        btnCheckWebIP: "Check Web IP",
+        btnSpeed: "Check Speed",
+        logInitial: "Tool ready — press a button to begin. Some features depend on the browser/CORS.",
+        logCheckingGPS: "Starting GPS check...",
+        logGPSNoSupport: "Browser does not support Geolocation",
+        logGPSError: "GPS error: ",
+        logGPSErrorPermission: "GPS error: Geolocation permission denied by user.",
+        logGPSErrorUnavailable: "GPS error: Geolocation position unavailable.",
+        logGPSErrorTimeout: "GPS error: Request timed out.",
+        logGPSOK: "GPS OK — lat: ",
+        logRequestingLocation: "Requesting location...",
+        logLocationReceived: "Location received",
+        logCheckingDNS: "Checking DNS for ",
+        logQueryingDNS: "Querying DNS...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS returned no A record or failed",
+        logDNSError: "DNS error: ",
+        logGettingPublicIP: "Getting public IP...",
+        logContactingIPService: "Contacting IP service...",
+        logPublicIP: "Public IP: ",
+        logPublicIPError: "Error getting public IP: ",
+        logGettingLocalIP: "Attempting to get local IP (WebRTC)...",
+        logCreatingPeerConnection: "Creating RTCPeerConnection...",
+        logLocalIPFound: "Local IP(s) found: ",
+        logLocalIPUnavailable: "Local IP unavailable — browser may be blocking WebRTC.",
+        logLocalIPError: "Error getting local IP: ",
+        logStartingSpeedTest: "Starting network speed test...",
+        logMeasuringDownload: "Measuring download speed...",
+        logDownloadSpeed: "Download speed: ",
+        logMeasuringUpload: "Measuring upload speed...",
+        logUploadSpeed: "Upload speed: ",
+        logSpeedTestComplete: "Speed test complete.",
+        logAutoLangRequest: "Requesting geolocation for automatic language selection...",
+        logAutoLangSuccess: "Geolocation successful. Language set to English.", // Corrected to be generic
+        logAutoLangDenied: "Geolocation denied. Defaulting to English or browser language.",
+        gpsStatusLabel: "GPS status",
+        dnsStatusLabel: "DNS status",
+        ipPublicLabel: "Public IP",
+        ipLocalLabel: "Local IP",
+        downloadTitle: "Download",
+        uploadTitle: "Upload",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "Download",
+        speedometerLabelUpload: "Upload",
+        footerNote: "Demo version — some features depend on browser and CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      vi: {
+        heroTitle: "Kiểm tra Mạng & GPS",
+        heroLead: "Kiểm tra nhanh GPS, DNS, IP công cộng và IP nội bộ trên trình duyệt.",
+        actionsTitle: "Hành động",
+        actionsSubtitle: "Click vào nút để kiểm tra",
+        btnGPS: "Check GPS",
+        btnIPPublic: "Check IP mạng",
+        btnIPLocal: "Check IP máy",
+        dnsPlaceholder: "Nhập domain (vd: example.com)",
+        btnCheckDnsServer: "kiểm tra địa chỉ máy chủ",
+        btnCheckWebIP: "kiểm tra ip web",
+        btnSpeed: "Check Speed",
+        logInitial: "Công cụ sẵn sàng — bấm một nút để bắt đầu. Một vài chức năng phụ thuộc trình duyệt/CORS.",
+        logCheckingGPS: "Bắt đầu kiểm tra GPS...",
+        logGPSNoSupport: "Trình duyệt không hỗ trợ Geolocation",
+        logGPSError: "Lỗi GPS: ",
+        logGPSErrorPermission: "Lỗi GPS: Quyền truy cập vị trí đã bị từ chối.",
+        logGPSErrorUnavailable: "Lỗi GPS: Không thể lấy vị trí hiện tại.",
+        logGPSErrorTimeout: "Lỗi GPS: Yêu cầu đã hết thời gian chờ.",
+        logGPSOK: "GPS OK — vĩ độ: ",
+        logRequestingLocation: "Yêu cầu vị trí...",
+        logLocationReceived: "Vị trí nhận được",
+        logCheckingDNS: "Kiểm tra DNS cho ",
+        logQueryingDNS: "Truy vấn DNS...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS trả về không có bản ghi A hoặc bị lỗi",
+        logDNSError: "Lỗi DNS: ",
+        logGettingPublicIP: "Lấy IP công cộng...",
+        logContactingIPService: "Liên hệ dịch vụ IP...",
+        logPublicIP: "IP công cộng: ",
+        logPublicIPError: "Lỗi lấy IP công cộng: ",
+        logGettingLocalIP: "Cố gắng lấy IP nội bộ (WebRTC)...",
+        logCreatingPeerConnection: "Tạo RTCPeerConnection...",
+        logLocalIPFound: "IP nội bộ tìm thấy: ",
+        logLocalIPUnavailable: "IP nội bộ không khả dụng — trình duyệt có thể chặn WebRTC.",
+        logLocalIPError: "Lỗi lấy IP nội bộ: ",
+        logStartingSpeedTest: "Bắt đầu kiểm tra tốc độ mạng...",
+        logMeasuringDownload: "Đang đo tốc độ tải về...",
+        logDownloadSpeed: "Tốc độ tải về: ",
+        logMeasuringUpload: "Đang đo tốc độ tải lên...",
+        logUploadSpeed: "Tốc độ tải lên: ",
+        logSpeedTestComplete: "Kiểm tra tốc độ hoàn tất.",
+        logAutoLangRequest: "Đang yêu cầu vị trí địa lý để tự động chọn ngôn ngữ...",
+        logAutoLangSuccess: "Vị trí địa lý thành công. Đã đặt ngôn ngữ sang Tiếng Việt.",
+        logAutoLangDenied: "Từ chối vị trí địa lý. Mặc định là Tiếng Anh hoặc ngôn ngữ của trình duyệt.",
+        gpsStatusLabel: "Trạng thái GPS",
+        dnsStatusLabel: "Trạng thái DNS",
+        ipPublicLabel: "IP công cộng",
+        ipLocalLabel: "IP nội bộ",
+        downloadTitle: "Tải về",
+        uploadTitle: "Tải lên",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "Tải về",
+        speedometerLabelUpload: "Tải lên",
+        footerNote: "Phiên bản demo — một số chức năng phụ thuộc trình duyệt và CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      es: {
+        heroTitle: "Comprobador de Red y GPS",
+        heroLead: "Verifique rápidamente el GPS, DNS, IP pública e IP local en su navegador — hermosa UI, efectos y sonido de clic.",
+        actionsTitle: "Acciones",
+        actionsSubtitle: "Haga clic en un botón para probar",
+        btnGPS: "Check GPS",
+        btnIPPublic: "Check IP Pública",
+        btnIPLocal: "Check IP Local",
+        dnsPlaceholder: "Ingresar dominio (ej: example.com)",
+        btnCheckDnsServer: "Comprobar dirección del servidor",
+        btnCheckWebIP: "Comprobar IP web",
+        btnSpeed: "Check Speed",
+        logInitial: "Herramienta lista — presione un botón para comenzar. Algunas funciones dependen del navegador/CORS.",
+        logCheckingGPS: "Iniciando verificación de GPS...",
+        logGPSNoSupport: "El navegador no es compatible con la geolocalización",
+        logGPSError: "Error de GPS: ",
+        logGPSErrorPermission: "Error de GPS: Permiso de geolocalización denegado por el usuario.",
+        logGPSErrorUnavailable: "Error de GPS: Posición de geolocalización no disponible.",
+        logGPSErrorTimeout: "Error de GPS: La solicitud ha caducado.",
+        logGPSOK: "GPS OK — lat: ",
+        logRequestingLocation: "Solicitando ubicación...",
+        logLocationReceived: "Ubicación recibida",
+        logCheckingDNS: "Verificando DNS para ",
+        logQueryingDNS: "Consultando DNS...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS no devolvió un registro A o falló",
+        logDNSError: "Error de DNS: ",
+        logGettingPublicIP: "Obteniendo IP pública...",
+        logContactingIPService: "Contactando al servicio de IP...",
+        logPublicIP: "IP pública: ",
+        logPublicIPError: "Error al obtener la IP pública: ",
+        logGettingLocalIP: "Intentando obtener IP local (WebRTC)...",
+        logCreatingPeerConnection: "Creando RTCPeerConnection...",
+        logLocalIPFound: "IP(s) local(es) encontrada(s) : ",
+        logLocalIPUnavailable: "IP local no disponible — el navegador puede estar bloqueando WebRTC.",
+        logLocalIPError: "Error al obtener la IP local: ",
+        logStartingSpeedTest: "Iniciando prueba de velocidad de red...",
+        logMeasuringDownload: "Midiendo velocidad de descarga...",
+        logDownloadSpeed: "Velocidad de descarga: ",
+        logMeasuringUpload: "Midiendo velocidad de subida...",
+        logUploadSpeed: "Velocidad de subida: ",
+        logSpeedTestComplete: "Prueba de velocidad completa.",
+        logAutoLangRequest: "Solicitando geolocalización para la selección automática de idioma...",
+        logAutoLangSuccess: "Geolocalización exitosa. Idioma establecido en Español.",
+        logAutoLangDenied: "Geolocalización denegada. Predeterminado a Inglés o el idioma del navegador.",
+        gpsStatusLabel: "Estado GPS",
+        dnsStatusLabel: "Estado DNS",
+        ipPublicLabel: "IP Pública",
+        ipLocalLabel: "IP Local",
+        downloadTitle: "Descarga",
+        uploadTitle: "Subida",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "Descarga",
+        speedometerLabelUpload: "Subida",
+        footerNote: "Versión demo — algunas funciones dependen del navegador y CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      fr: {
+        heroTitle: "Vérificateur Réseau & GPS",
+        heroLead: "Vérifiez rapidement le GPS, le DNS, l'IP publique et l'IP locale dans votre navigateur — belle interface utilisateur, effets et son de clic.",
+        actionsTitle: "Actions",
+        actionsSubtitle: "Cliquez sur un bouton pour tester",
+        btnGPS: "Check GPS",
+        btnIPPublic: "Check IP Publique",
+        btnIPLocal: "Check IP Locale",
+        dnsPlaceholder: "Saisir domaine (ex: example.com)",
+        btnCheckDnsServer: "Vérifier l'adresse du serveur",
+        btnCheckWebIP: "Vérifier l'IP web",
+        btnSpeed: "Check Speed",
+        logInitial: "Outil prêt — appuyez sur un bouton pour commencer. Certaines fonctionnalités dépendent du navigateur/CORS.",
+        logCheckingGPS: "Lancement de la vérification GPS...",
+        logGPSNoSupport: "Le navigateur ne prend pas en charge la géolocalisation",
+        logGPSError: "Erreur GPS : ",
+        logGPSErrorPermission: "Erreur GPS : Autorisation de géolocalisation refusée par l'utilisateur.",
+        logGPSErrorUnavailable: "Erreur GPS : Position de géolocalisation non disponible.",
+        logGPSErrorTimeout: "Erreur GPS : La requête a expiré.",
+        logGPSOK: "GPS OK — lat : ",
+        logRequestingLocation: "Demande de localisation...",
+        logLocationReceived: "Localisation reçue",
+        logCheckingDNS: "Vérification DNS pour ",
+        logQueryingDNS: "Requête DNS...",
+        logDNSOK: "DNS OK — A : ",
+        logDNSNoA: "Le DNS n'a pas renvoyé d'enregistrement A ou a échoué",
+        logDNSError: "Erreur DNS : ",
+        logGettingPublicIP: "Obtention de l'IP publique...",
+        logContactingIPService: "Contact du service IP...",
+        logPublicIP: "IP publique : ",
+        logPublicIPError: "Erreur lors de l'obtention de l'IP publique : ",
+        logGettingLocalIP: "Tentative d'obtention de l'IP locale (WebRTC)...",
+        logCreatingPeerConnection: "Création de RTCPeerConnection...",
+        logLocalIPFound: "IP(s) locale(s) trouvée(s) : ",
+        logLocalIPUnavailable: "IP locale non disponible — le navigateur peut bloquer WebRTC.",
+        logLocalIPError: "Erreur lors de l'obtention de l'IP locale : ",
+        logStartingSpeedTest: "Démarrage du test de vitesse réseau...",
+        logMeasuringDownload: "Mesure de la vitesse de téléchargement...",
+        logDownloadSpeed: "Vitesse de téléchargement : ",
+        logMeasuringUpload: "Mesure de la vitesse de téléversement...",
+        logUploadSpeed: "Vitesse de téléversement : ",
+        logSpeedTestComplete: "Test de vitesse terminé.",
+        logAutoLangRequest: "Demande de géolocalisation pour la sélection automatique de la langue...",
+        logAutoLangSuccess: "Géolocalisation réussie. Langue définie sur Français.",
+        logAutoLangDenied: "Géolocalisation refusée. Utilisation par défaut de l'Anglais ou de la langue du navigateur.",
+        gpsStatusLabel: "Statut GPS",
+        dnsStatusLabel: "Statut DNS",
+        ipPublicLabel: "IP Publique",
+        ipLocalLabel: "IP Locale",
+        downloadTitle: "Téléchargement",
+        uploadTitle: "Téléversement",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "Téléchargement",
+        speedometerLabelUpload: "Téléversement",
+        footerNote: "Version démo — certaines fonctionnalités dépendent du navigateur et du CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      ko: {
+        heroTitle: "네트워크 및 GPS 검사기",
+        heroLead: "브라우저에서 GPS, DNS, 공용 IP 및 로컬 IP를 빠르게 확인하세요 — 아름다운 UI, 효과 및 클릭 소리.",
+        actionsTitle: "작업",
+        actionsSubtitle: "버튼을 클릭하여 테스트",
+        btnGPS: "Check GPS",
+        btnIPPublic: "공용 IP 확인",
+        btnIPLocal: "로컬 IP 확인",
+        dnsPlaceholder: "도메인 입력 (예: example.com)",
+        btnCheckDnsServer: "서버 주소 확인",
+        btnCheckWebIP: "웹 IP 확인",
+        btnSpeed: "속도 확인",
+        logInitial: "도구 준비 완료 — 시작하려면 버튼을 누르세요. 일부 기능은 브라우저/CORS에 따라 다릅니다.",
+        logCheckingGPS: "GPS 확인 시작...",
+        logGPSNoSupport: "브라우저가 Geolocation을 지원하지 않습니다",
+        logGPSError: "GPS 오류: ",
+        logGPSErrorPermission: "GPS 오류: 사용자가 지리적 위치 권한을 거부했습니다.",
+        logGPSErrorUnavailable: "GPS 오류: 지리적 위치를 사용할 수 없습니다.",
+        logGPSErrorTimeout: "GPS 오류: 요청 시간이 초과되었습니다.",
+        logGPSOK: "GPS OK — 위도: ",
+        logRequestingLocation: "위치 요청 중...",
+        logLocationReceived: "위치 수신됨",
+        logCheckingDNS: "에 대한 DNS 확인 중 ",
+        logQueryingDNS: "DNS 쿼리 중...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS가 A 레코드를 반환하지 않았거나 실패했습니다",
+        logDNSError: "DNS 오류: ",
+        logGettingPublicIP: "공용 IP 가져오기...",
+        logContactingIPService: "IP 서비스에 연락 중...",
+        logPublicIP: "공용 IP: ",
+        logPublicIPError: "공용 IP 가져오기 오류: ",
+        logGettingLocalIP: "로컬 IP 가져오기 시도 중 (WebRTC)...",
+        logCreatingPeerConnection: "RTCPeerConnection 생성 중...",
+        logLocalIPFound: "로컬 IP 발견: ",
+        logLocalIPUnavailable: "로컬 IP 사용 불가 — 브라우저가 WebRTC를 차단할 수 있습니다.",
+        logLocalIPError: "로컬 IP 가져오기 오류: ",
+        logStartingSpeedTest: "네트워크 속도 테스트 시작...",
+        logMeasuringDownload: "다운로드 속도 측정 중...",
+        logDownloadSpeed: "다운로드 속도: ",
+        logMeasuringUpload: "업로드 속도 측정 중...",
+        logUploadSpeed: "업로드 속도: ",
+        logSpeedTestComplete: "속도 테스트 완료.",
+        logAutoLangRequest: "자동 언어 선택을 위해 지리적 위치를 요청 중...",
+        logAutoLangSuccess: "지리적 위치 성공. 언어가 한국어로 설정되었습니다.",
+        logAutoLangDenied: "지리적 위치가 거부되었습니다. 기본값은 영어 또는 브라우저 언어입니다.",
+        gpsStatusLabel: "GPS 상태",
+        dnsStatusLabel: "DNS 상태",
+        ipPublicLabel: "공용 IP",
+        ipLocalLabel: "로컬 IP",
+        downloadTitle: "다운로드",
+        uploadTitle: "업로드",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "다운로드",
+        speedometerLabelUpload: "업로드",
+        footerNote: "데모 버전 — 일부 기능은 브라우저 및 CORS에 따라 다릅니다",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      ja: {
+        heroTitle: "ネットワーク＆GPSチェッカー",
+        heroLead: "ブラウザでGPS、DNS、パブリックIP、ローカルIPを素早く確認 — 美しいUI、エフェクト、クリック音。",
+        actionsTitle: "アクション",
+        actionsSubtitle: "ボタンをクリックしてテスト",
+        btnGPS: "Check GPS",
+        btnIPPublic: "パブリックIPを確認",
+        btnIPLocal: "ローカルIPを確認",
+        dnsPlaceholder: "ドメインを入力 (例: example.com)",
+        btnCheckDnsServer: "サーバーアドレスを確認",
+        btnCheckWebIP: "ウェブIPを確認",
+        btnSpeed: "速度を確認",
+        logInitial: "ツール準備完了 — 開始するにはボタンを押してください。一部の機能はブラウザ/CORSに依存します。",
+        logCheckingGPS: "GPSチェックを開始...",
+        logGPSNoSupport: "ブラウザは位置情報をサポートしていません",
+        logGPSError: "GPSエラー: ",
+        logGPSErrorPermission: "GPSエラー: 位置情報へのアクセスがユーザーによって拒否されました。",
+        logGPSErrorUnavailable: "GPSエラー: 位置情報が利用できません。",
+        logGPSErrorTimeout: "GPSエラー: リクエストがタイムアウトしました。",
+        logGPSOK: "GPS OK — 緯度: ",
+        logRequestingLocation: "位置を要求しています...",
+        logLocationReceived: "位置情報を受信しました",
+        logCheckingDNS: "のDNSを確認中 ",
+        logQueryingDNS: "DNSクエリ中...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNSがAレコードを返さなかったか、失敗しました",
+        logDNSError: "DNSエラー: ",
+        logGettingPublicIP: "パブリックIPを取得中...",
+        logContactingIPService: "IPサービスに接続中...",
+        logPublicIP: "パブリックIP: ",
+        logPublicIPError: "パブリックIPの取得エラー: ",
+        logGettingLocalIP: "ローカルIPを取得しようとしています (WebRTC)...",
+        logCreatingPeerConnection: "RTCPeerConnectionを作成中...",
+        logLocalIPFound: "ローカルIPが見つかりました: ",
+        logLocalIPUnavailable: "ローカルIPは利用できません — ブラウザがWebRTCをブロックしている可能性があります。",
+        logLocalIPError: "ローカルIPの取得エラー: ",
+        logStartingSpeedTest: "ネットワーク速度テストを開始...",
+        logMeasuringDownload: "ダウンロード速度を測定中...",
+        logDownloadSpeed: "ダウンロード速度: ",
+        logMeasuringUpload: "アップロード速度を測定中...",
+        logUploadSpeed: "アップロード速度: ",
+        logSpeedTestComplete: "速度テスト完了。",
+        logAutoLangRequest: "自動言語選択のため、位置情報をリクエストしています...",
+        logAutoLangSuccess: "位置情報取得成功。言語を日本語に設定しました。",
+        logAutoLangDenied: "位置情報が拒否されました。デフォルトで英語またはブラウザの言語を使用します。",
+        gpsStatusLabel: "GPSステータス",
+        dnsStatusLabel: "DNSステータス",
+        ipPublicLabel: "パブリックIP",
+        ipLocalLabel: "ローカルIP",
+        downloadTitle: "ダウンロード",
+        uploadTitle: "アップロード",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "ダウンロード",
+        speedometerLabelUpload: "アップロード",
+        footerNote: "デモ版 — 一部の機能はブラウザとCORSに依存します",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      zh: {
+        heroTitle: "网络与GPS检查器",
+        heroLead: "在您的浏览器中快速检查GPS、DNS、公共IP和本地IP — 美观的UI、效果和点击声音。",
+        actionsTitle: "操作",
+        actionsSubtitle: "点击按钮进行测试",
+        btnGPS: "Check GPS",
+        btnIPPublic: "检查公共IP",
+        btnIPLocal: "检查本地IP",
+        dnsPlaceholder: "输入域名 (例如: example.com)",
+        btnCheckDnsServer: "检查服务器地址",
+        btnCheckWebIP: "检查网页IP",
+        btnSpeed: "检查速度",
+        logInitial: "工具已就绪 — 按下按钮开始。某些功能取决于浏览器/CORS。",
+        logCheckingGPS: "开始GPS检查...",
+        logGPSNoSupport: "浏览器不支持地理定位",
+        logGPSError: "GPS错误: ",
+        logGPSErrorPermission: "GPS错误: 用户拒绝了地理位置权限。",
+        logGPSErrorUnavailable: "GPS错误: 地理位置不可用。",
+        logGPSErrorTimeout: "GPS错误: 请求超时。",
+        logGPSOK: "GPS OK — 纬度: ",
+        logRequestingLocation: "请求位置...",
+        logLocationReceived: "位置已接收",
+        logCheckingDNS: "检查DNS中 ",
+        logQueryingDNS: "查询DNS...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS未返回A记录或失败",
+        logDNSError: "DNS错误: ",
+        logGettingPublicIP: "获取公共IP...",
+        logContactingIPService: "联系IP服务...",
+        logPublicIP: "公共IP: ",
+        logPublicIPError: "获取公共IP时出错: ",
+        logGettingLocalIP: "尝试获取本地IP (WebRTC)...",
+        logCreatingPeerConnection: "创建RTCPeerConnection...",
+        logLocalIPFound: "找到本地IP: ",
+        logLocalIPUnavailable: "本地IP不可用 — 浏览器可能正在阻止WebRTC。",
+        logLocalIPError: "获取本地IP时出错: ",
+        logStartingSpeedTest: "开始网络速度测试...",
+        logMeasuringDownload: "测量下载速度...",
+        logDownloadSpeed: "下载速度: ",
+        logMeasuringUpload: "测量上传速度...",
+        logUploadSpeed: "上传速度: ",
+        logSpeedTestComplete: "速度测试完成。",
+        logAutoLangRequest: "正在请求地理位置以自动选择语言...",
+        logAutoLangSuccess: "地理位置成功。语言已设置为中文。",
+        logAutoLangDenied: "地理位置被拒绝。默认使用英语或浏览器语言。",
+        gpsStatusLabel: "GPS状态",
+        dnsStatusLabel: "DNS状态",
+        ipPublicLabel: "公共IP",
+        ipLocalLabel: "本地IP",
+        downloadTitle: "下载",
+        uploadTitle: "上传",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "下载",
+        speedometerLabelUpload: "上传",
+        footerNote: "演示版本 — 某些功能取决于浏览器和CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      hi: {
+        heroTitle: "नेटवर्क और जीपीएस चेकर",
+        heroLead: "अपने ब्राउज़र में जीपीएस, डीएनएस, सार्वजनिक आईपी और स्थानीय आईपी की तुरंत जांच करें — सुंदर यूआई, प्रभाव और क्लिक ध्वनि।",
+        actionsTitle: "कार्य",
+        actionsSubtitle: "परीक्षण करने के लिए एक बटन पर क्लिक करें",
+        btnGPS: "Check GPS",
+        btnIPPublic: "सार्वजनिक आईपी जांचें",
+        btnIPLocal: "स्थानीय आईपी जांचें",
+        dnsPlaceholder: "डोमेन दर्ज करें (उदा: example.com)",
+        btnCheckDnsServer: "सर्वर पता जांचें",
+        btnCheckWebIP: "वेब आईपी जांचें",
+        btnSpeed: "गति जांचें",
+        logInitial: "टूल तैयार है — शुरू करने के लिए एक बटन दबाएं। कुछ सुविधाएँ ब्राउज़र/CORS पर निर्भर करती हैं।",
+        logCheckingGPS: "जीपीएस जांच शुरू हो रही है...",
+        logGPSNoSupport: "ब्राउज़र जियोलोकेशन का समर्थन नहीं करता है",
+        logGPSError: "जीपीएस त्रुटि: ",
+        logGPSErrorPermission: "जीपीएस त्रुटि: उपयोगकर्ता द्वारा जियोलोकेशन अनुमति अस्वीकृत।",
+        logGPSErrorUnavailable: "जीपीएस त्रुटि: जियोलोकेशन स्थिति अनुपलब्ध है।",
+        logGPSErrorTimeout: "जीपीएस त्रुटि: अनुरोध का समय समाप्त हो गया।",
+        logGPSOK: "जीपीएस ठीक है — अक्षांश: ",
+        logRequestingLocation: "स्थान का अनुरोध कर रहा है...",
+        logLocationReceived: "स्थान प्राप्त हुआ",
+        logCheckingDNS: "के लिए डीएनएस जांच रहा है ",
+        logQueryingDNS: "डीएनएस क्वेरी कर रहा है...",
+        logDNSOK: "डीएनएस ठीक है — ए: ",
+        logDNSNoA: "डीएनएस ने कोई ए रिकॉर्ड नहीं लौटाया या विफल रहा",
+        logDNSError: "डीएनएस त्रुटि: ",
+        logGettingPublicIP: "सार्वजनिक आईपी प्राप्त कर रहा है...",
+        logContactingIPService: "आईपी सेवा से संपर्क कर रहा है...",
+        logPublicIP: "सार्वजनिक आईपी: ",
+        logPublicIPError: "सार्वजनिक आईपी प्राप्त करने में त्रुटि: ",
+        logGettingLocalIP: "स्थानीय आईपी प्राप्त करने का प्रयास कर रहा है (WebRTC)...",
+        logCreatingPeerConnection: "RTCPeerConnection बना रहा है...",
+        logLocalIPFound: "स्थानीय आईपी मिला: ",
+        logLocalIPUnavailable: "स्थानीय आईपी अनुपलब्ध है — ब्राउज़र WebRTC को ब्लॉक कर रहा होगा।",
+        logLocalIPError: "स्थानीय आईपी प्राप्त करने में त्रुटि: ",
+        logStartingSpeedTest: "नेटवर्क गति परीक्षण शुरू हो रहा है...",
+        logMeasuringDownload: "डाउनलोड गति मापना...",
+        logDownloadSpeed: "डाउनलोड गति: ",
+        logMeasuringUpload: "अपलोड गति मापना...",
+        logUploadSpeed: "अपलोड गति: ",
+        logSpeedTestComplete: "गति परीक्षण पूरा हुआ।",
+        logAutoLangRequest: "स्वचालित भाषा चयन के लिए भौगोलिक स्थान का अनुरोध कर रहा है...",
+        logAutoLangSuccess: "भौगोलिक स्थान सफल रहा। भाषा हिंदी पर सेट की गई।",
+        logAutoLangDenied: "भौगोलिक स्थान अस्वीकृत। डिफ़ॉल्ट रूप से अंग्रेजी या ब्राउज़र भाषा का उपयोग किया जा रहा है।",
+        gpsStatusLabel: "जीपीएस स्थिति",
+        dnsStatusLabel: "डीएनएस स्थिति",
+        ipPublicLabel: "सार्वजनिक आईपी",
+        ipLocalLabel: "स्थानीय आईपी",
+        downloadTitle: "डाउनलोड",
+        uploadTitle: "अपलोड",
+        speedUnit: "एमबीपीएस",
+        speedometerLabelDownload: "डाउनलोड",
+        speedometerLabelUpload: "अपलोड",
+        footerNote: "डेमो संस्करण — कुछ सुविधाएँ ब्राउज़र और CORS पर निर्भर करती हैं",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      ar: {
+        heroTitle: "أداة فحص الشبكة وGPS",
+        heroLead: "تحقق بسرعة من GPS وDNS وIP العام وIP المحلي في متصفحك — واجهة مستخدم جميلة وتأثيرات وصوت النقر.",
+        actionsTitle: "الإجراءات",
+        actionsSubtitle: "انقر على زر للاختبار",
+        btnGPS: "Check GPS",
+        btnIPPublic: "تحقق من IP العام",
+        btnIPLocal: "تحقق من IP المحلي",
+        dnsPlaceholder: "أدخل النطاق (مثال: example.com)",
+        btnCheckDnsServer: "تحقق من عنوان الخادم",
+        btnCheckWebIP: "تحقق من IP الويب",
+        btnSpeed: "تحقق من السرعة",
+        logInitial: "الأداة جاهزة — اضغط على زر للبدء. بعض الميزات تعتمد على المتصفح/CORS.",
+        logCheckingGPS: "بدء فحص GPS...",
+        logGPSNoSupport: "المتصفح لا يدعم تحديد الموقع الجغرافي",
+        logGPSError: "خطأ في GPS: ",
+        logGPSErrorPermission: "خطأ في GPS: تم رفض إذن تحديد الموقع الجغرافي من قبل المستخدم.",
+        logGPSErrorUnavailable: "خطأ في GPS: موقع تحديد الموقع الجغرافي غير متاح.",
+        logGPSErrorTimeout: "خطأ في GPS: انتهت مهلة الطلب.",
+        logGPSOK: "GPS OK — خط العرض: ",
+        logRequestingLocation: "طلب الموقع...",
+        logLocationReceived: "تم استلام الموقع",
+        logCheckingDNS: "فحص DNS لـ ",
+        logQueryingDNS: "استعلام DNS...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS لم يرجع سجل A أو فشل",
+        logDNSError: "خطأ DNS: ",
+        logGettingPublicIP: "الحصول على IP العام...",
+        logContactingIPService: "الاتصال بخدمة IP...",
+        logPublicIP: "IP العام: ",
+        logPublicIPError: "خطأ في الحصول على IP العام: ",
+        logGettingLocalIP: "محاولة الحصول على IP المحلي (WebRTC)...",
+        logCreatingPeerConnection: "إنشاء RTCPeerConnection...",
+        logLocalIPFound: "تم العثور على IP(s) المحلي(ة): ",
+        logLocalIPUnavailable: "IP المحلي غير متاح — قد يقوم المتصفح بحظر WebRTC.",
+        logLocalIPError: "خطأ في الحصول على IP المحلي: ",
+        logStartingSpeedTest: "بدء اختبار سرعة الشبكة...",
+        logMeasuringDownload: "قياس سرعة التنزيل...",
+        logDownloadSpeed: "سرعة التنزيل: ",
+        logMeasuringUpload: "قياس سرعة الرفع...",
+        logUploadSpeed: "سرعة الرفع: ",
+        logSpeedTestComplete: "اكتمل اختبار السرعة.",
+        logAutoLangRequest: "طلب تحديد الموقع الجغرافي للاختيار التلقائي للغة...",
+        logAutoLangSuccess: "تم تحديد الموقع الجغرافي بنجاح. تم تعيين اللغة إلى العربية.",
+        logAutoLangDenied: "تم رفض تحديد الموقع الجغرافي. يتم استخدام اللغة الإنجليزية أو لغة المتصفح بشكل افتراضي.",
+        gpsStatusLabel: "حالة GPS",
+        dnsStatusLabel: "حالة DNS",
+        ipPublicLabel: "IP العام",
+        ipLocalLabel: "IP المحلي",
+        downloadTitle: "تنزيل",
+        uploadTitle: "رفع",
+        speedUnit: "ميجابت في الثانية",
+        speedometerLabelDownload: "تنزيل",
+        speedometerLabelUpload: "رفع",
+        footerNote: "نسخة تجريبية — بعض الميزات تعتمد على المتصفح وCORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      nl: {
+        heroTitle: "Netwerk & GPS Checker",
+        heroLead: "Controleer snel GPS, DNS, openbaar IP en lokaal IP in je browser — mooie UI, effecten en klikgeluid.",
+        actionsTitle: "Acties",
+        actionsSubtitle: "Klik op een knop om te testen",
+        btnGPS: "Check GPS",
+        btnIPPublic: "Check openbaar IP",
+        btnIPLocal: "Check lokaal IP",
+        dnsPlaceholder: "Voer domein in (bijv. example.com)",
+        btnCheckDnsServer: "Controleer serveradres",
+        btnCheckWebIP: "Controleer web-IP",
+        btnSpeed: "Check Snelheid",
+        logInitial: "Tool is klaar — druk op een knop om te beginnen. Sommige functies zijn afhankelijk van de browser/CORS.",
+        logCheckingGPS: "GPS-controle starten...",
+        logGPSNoSupport: "Browser ondersteunt Geolocation niet",
+        logGPSError: "GPS-fout: ",
+        logGPSErrorPermission: "GPS-fout: Geolocatie-toestemming geweigerd door gebruiker.",
+        logGPSErrorUnavailable: "GPS-fout: Geolocatie-positie niet beschikbaar.",
+        logGPSErrorTimeout: "GPS-fout: Aanvraag is verlopen.",
+        logGPSOK: "GPS OK — breedtegraad: ",
+        logRequestingLocation: "Locatie aanvragen...",
+        logLocationReceived: "Locatie ontvangen",
+        logCheckingDNS: "DNS controleren voor ",
+        logQueryingDNS: "DNS-query uitvoeren...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "DNS heeft geen A-record geretourneerd of is mislukt",
+        logDNSError: "DNS-fout: ",
+        logGettingPublicIP: "Openbaar IP ophalen...",
+        logContactingIPService: "Contact opnemen met IP-service...",
+        logPublicIP: "Openbaar IP: ",
+        logPublicIPError: "Fout bij het ophalen van openbaar IP: ",
+        logGettingLocalIP: "Lokaal IP proberen te krijgen (WebRTC)...",
+        logCreatingPeerConnection: "RTCPeerConnection aanmaken...",
+        logLocalIPFound: "Lokaal IP(s) gevonden: ",
+        logLocalIPUnavailable: "Lokaal IP niet beschikbaar — browser blokkeert mogelijk WebRTC.",
+        logLocalIPError: "Fout bij het ophalen van lokaal IP: ",
+        logStartingSpeedTest: "Netwerksnelheidstest starten...",
+        logMeasuringDownload: "Downloadsnelheid meten...",
+        logDownloadSpeed: "Downloadsnelheid: ",
+        logMeasuringUpload: "Uploadsnelheid meten...",
+        logUploadSpeed: "Uploadsnelheid: ",
+        logSpeedTestComplete: "Snelheidstest voltooid.",
+        logAutoLangRequest: "Geolocatie aanvragen voor automatische taalselectie...",
+        logAutoLangSuccess: "Geolocatie succesvol. Taal ingesteld op Nederlands.",
+        logAutoLangDenied: "Geolocatie geweigerd. Standaardinstelling is Engels of de browsertaal.",
+        gpsStatusLabel: "GPS-status",
+        dnsStatusLabel: "DNS-status",
+        ipPublicLabel: "Openbaar IP",
+        ipLocalLabel: "Lokaal IP",
+        downloadTitle: "Downloaden",
+        uploadTitle: "Uploaden",
+        speedUnit: "Mbps",
+        speedometerLabelDownload: "Downloaden",
+        speedometerLabelUpload: "Uploaden",
+        footerNote: "Demoversie — sommige functies zijn afhankelijk van de browser en CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      },
+      he: {
+        heroTitle: "בודק רשת ו-GPS",
+        heroLead: "בדוק במהירות GPS, DNS, IP ציבורי ו-IP מקומי בדפדפן שלך — ממשק משתמש יפה, אפקטים וצליל לחיצה.",
+        actionsTitle: "פעולות",
+        actionsSubtitle: "לחץ על כפתור כדי לבדוק",
+        btnGPS: "Check GPS",
+        btnIPPublic: "בדוק IP ציבורי",
+        btnIPLocal: "בדוק IP מקומי",
+        dnsPlaceholder: "הכנס דומיין (לדוגמה: example.com)",
+        btnCheckDnsServer: "בדוק כתובת שרת",
+        btnCheckWebIP: "בדוק IP של אתר",
+        btnSpeed: "בדוק מהירות",
+        logInitial: "הכלי מוכן — לחץ על כפתור כדי להתחיל. חלק מהתכונות תלויות בדפדפן/CORS.",
+        logCheckingGPS: "מתחיל בדיקת GPS...",
+        logGPSNoSupport: "הדפדפן אינו תומך במיקום גיאוגרפי",
+        logGPSError: "שגיאת GPS: ",
+        logGPSErrorPermission: "שגיאת GPS: הרשאת מיקום גיאוגרפי נדחתה על ידי המשתמש.",
+        logGPSErrorUnavailable: "שגיאת GPS: מיקום גיאוגרפי לא זמין.",
+        logGPSErrorTimeout: "שגיאת GPS: הבקשה הגיעה לזמן קצוב.",
+        logGPSOK: "GPS OK — קו רוחב: ",
+        logRequestingLocation: "מבקש מיקום...",
+        logLocationReceived: "התקבל מיקום",
+        logCheckingDNS: "בדיקת DNS עבור ",
+        logQueryingDNS: "מריץ שאילתת DNS...",
+        logDNSOK: "DNS OK — A: ",
+        logDNSNoA: "ה-DNS לא החזיר רשומת A או נכשל",
+        logDNSError: "שגיאת DNS: ",
+        logGettingPublicIP: "מקבל IP ציבורי...",
+        logContactingIPService: "יוצר קשר עם שירות IP...",
+        logPublicIP: "IP ציבורי: ",
+        logPublicIPError: "שגיאה בקבלת IP ציבורי: ",
+        logGettingLocalIP: "מנסה לקבל IP מקומי (WebRTC)...",
+        logCreatingPeerConnection: "יוצר RTCPeerConnection...",
+        logLocalIPFound: "IP(ים) מקומי(ים) נמצאו: ",
+        logLocalIPUnavailable: "IP מקומי לא זמין — ייתכן שהדפדפן חוסם WebRTC.",
+        logLocalIPError: "שגיאה בקבלת IP מקומי: ",
+        logStartingSpeedTest: "מתחיל בדיקת מהירות רשת...",
+        logMeasuringDownload: "מודד מהירות הורדה...",
+        logDownloadSpeed: "מהירות הורדה: ",
+        logMeasuringUpload: "מודד מהירות העלאה...",
+        logUploadSpeed: "מהירות העלאה: ",
+        logSpeedTestComplete: "בדיקת המהירות הושלמה.",
+        logAutoLangRequest: "מבקש מיקום גיאוגרפי לבחירת שפה אוטומטית...",
+        logAutoLangSuccess: "מיקום גיאוגרפי מוצלח. השפה הוגדרה לעברית.",
+        logAutoLangDenied: "מיקום גיאוגרפי נדחה. שימוש בשפת ברירת המחדל של הדפדפן או אנגלית.",
+        gpsStatusLabel: "מצב GPS",
+        dnsStatusLabel: "מצב DNS",
+        ipPublicLabel: "IP ציבורי",
+        ipLocalLabel: "IP מקומי",
+        downloadTitle: "הורדה",
+        uploadTitle: "העלאה",
+        speedUnit: "מגה-ביט לשנייה",
+        speedometerLabelDownload: "הורדה",
+        speedometerLabelUpload: "העלאה",
+        footerNote: "גרסת הדגמה — חלק מהתכונות תלויות בדפדפן וב-CORS",
+        mainFooter: "© xTer Network Checker 2025 • Giao diện Demo"
+      }
+    };
+    
+    // Helper UI elements
+    const languageSelect = document.getElementById('language-select');
+    const elementsToTranslate = {
+      heroTitle: document.getElementById('hero-title'),
+      heroLead: document.getElementById('hero-lead'),
+      actionsTitle: document.getElementById('actions-title'),
+      actionsSubtitle: document.getElementById('actions-subtitle'),
+      btnGPS: document.getElementById('btn-gps'),
+      btnIPPublic: document.getElementById('btn-ip-public'),
+      btnIPLocal: document.getElementById('btn-ip-local'),
+      dnsPlaceholder: document.getElementById('dns-name'),
+      btnCheckDnsServer: document.getElementById('btn-check-dns-server'),
+      btnCheckWebIP: document.getElementById('btn-check-web-ip'),
+      btnSpeed: document.getElementById('btn-speed'),
+      gpsStatusLabel: document.getElementById('gps-status-label'),
+      dnsStatusLabel: document.getElementById('dns-status-label'),
+      ipPublicLabel: document.getElementById('ip-public-label'),
+      ipLocalLabel: document.getElementById('ip-local-label'),
+      downloadTitle: document.getElementById('download-title'),
+      uploadTitle: document.getElementById('upload-title'),
+      footerNote: document.getElementById('footer-note'),
+      mainFooter: document.getElementById('main-footer'),
+      speedometerLabelDownload: document.getElementById('speed-label')
+    };
+
+    let currentLang = 'en';
+
+    function updateLanguage(lang) {
+        if (!translations[lang]) return;
+        currentLang = lang;
+        const t = translations[lang];
+
+        // Update static UI elements
+        for (const key in elementsToTranslate) {
+            const el = elementsToTranslate[key];
+            if (el) {
+                // Check if it's an input placeholder
+                if (el.placeholder !== undefined) {
+                    el.placeholder = t[key];
+                } else {
+                    el.textContent = t[key];
+                }
+            }
+        }
+    }
+
+    languageSelect.addEventListener('change', (e) => {
+        updateLanguage(e.target.value);
+        appendLog(translations[currentLang].logInitial);
+    });
+
+    /**
+     * Handles geolocation errors and returns a translated, user-friendly message.
+     * @param {GeolocationPositionError} error - The error object from the Geolocation API.
+     * @returns {string} The translated error message.
+     */
+    function getGeolocationErrorMessage(error) {
+        console.error("Geolocation error object:", error);
+        switch(error.code) {
+            case error.PERMISSION_DENIED:
+                return translations[currentLang].logGPSErrorPermission;
+            case error.POSITION_UNAVAILABLE:
+                return translations[currentLang].logGPSErrorUnavailable;
+            case error.TIMEOUT:
+                return translations[currentLang].logGPSErrorTimeout;
+            default:
+                return translations[currentLang].logGPSError + (error.message || '');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initial setup on page load.
+        // Try to determine language from geolocation first.
+        if (navigator.geolocation) {
+            appendLog(translations[currentLang].logAutoLangRequest);
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const { latitude, longitude } = position.coords;
+                    // Simple check for Vietnam's approximate coordinates
+                    if (latitude > 8 && latitude < 23 && longitude > 102 && longitude < 110) {
+                        languageSelect.value = 'vi';
+                        updateLanguage('vi');
+                        appendLog(translations['vi'].logAutoLangSuccess);
+                    } else {
+                        // For other locations, fall back to browser's language
+                        const browserLang = navigator.language.split('-')[0];
+                        if (translations[browserLang]) {
+                            languageSelect.value = browserLang;
+                            updateLanguage(browserLang);
+                        } else {
+                            languageSelect.value = 'en';
+                            updateLanguage('en');
+                        }
+                        appendLog(`Geolocation successful. Language set to browser default (${languageSelect.value}).`);
+                    }
+                },
+                (error) => {
+                    const errorMessage = getGeolocationErrorMessage(error);
+                    appendLog(errorMessage);
+                    const browserLang = navigator.language.split('-')[0];
+                    if (translations[browserLang]) {
+                        languageSelect.value = browserLang;
+                        updateLanguage(browserLang);
+                    } else {
+                        languageSelect.value = 'en';
+                        updateLanguage('en');
+                    }
+                },
+                { timeout: 5000 } // Add a timeout to not block page load for too long
+            );
+        } else {
+            // Geolocation not supported, default to browser language or English
+            const browserLang = navigator.language.split('-')[0];
+            if (translations[browserLang]) {
+                languageSelect.value = browserLang;
+                updateLanguage(browserLang);
+            } else {
+                languageSelect.value = 'en';
+                updateLanguage('en');
+            }
+            appendLog(translations[currentLang].logGPSNoSupport);
+        }
+        
+        // Initial log message in determined language
+        appendLog(translations[currentLang].logInitial);
+    });
+    
+    const logEl = document.getElementById('log');
+    const btnGPS = document.getElementById('btn-gps');
+    const btnIPPublic = document.getElementById('btn-ip-public');
+    const btnIPLocal = document.getElementById('btn-ip-local');
+    const btnCheckDnsServer = document.getElementById('btn-check-dns-server');
+    const btnCheckWebIP = document.getElementById('btn-check-web-ip');
+    const btnSpeed = document.getElementById('btn-speed');
+    const dnsName = document.getElementById('dns-name');
+    const clickSound = document.getElementById('click-sound');
+    const gpsStatus = document.getElementById('gps-status');
+    const dnsStatus = document.getElementById('dns-status');
+    const ipPublicEl = document.getElementById('ip-public');
+    const ipLocalEl = document.getElementById('ip-local');
+    const miniLoader = document.getElementById('mini-loader');
+    const miniStatus = document.getElementById('mini-status');
+    
+    // New speedometer elements
+    const speedometerEl = document.getElementById('speedometer');
+    const speedTextEl = document.getElementById('speed-text');
+    const speedLabelEl = document.getElementById('speed-label');
+    const outerCircleEl = document.getElementById('outer-circle');
+    const speedometerNeedleEl = document.getElementById('speedometer-needle');
+    const speedResultsEl = document.getElementById('speed-results');
+    const downloadSpeedEl = document.getElementById('download-speed');
+    const uploadSpeedEl = document.getElementById('upload-speed');
+    
+    /**
+     * Helper function to play the click sound.
+     */
+    function playClick() {
+      try {
+        clickSound.currentTime = 0;
+        clickSound.play();
+      } catch (e) {
+        console.error("Error playing sound:", e);
+      }
+    }
+
+    /**
+     * Helper function for the ripple effect on buttons.
+     */
+    function doRipple(e) {
+      const b = e.currentTarget;
+      const r = document.createElement('span');
+      r.className = 'ripple';
+      const rect = b.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      r.style.width = r.style.height = size + 'px';
+      r.style.left = (e.clientX - rect.left - size / 2) + 'px';
+      r.style.top = (e.clientY - rect.top - size / 2) + 'px';
+      b.appendChild(r);
+      setTimeout(() => r.remove(), 700);
+    }
+
+    /**
+     * Helper function to add a new entry to the log panel.
+     */
+    function appendLog(txt) {
+      const time = new Date().toLocaleTimeString();
+      const logEntry = document.createElement('div');
+      logEntry.className = 'log-entry';
+      logEntry.textContent = `[${time}] ${txt}`;
+      logEl.prepend(logEntry); // Add to the top
+    }
+
+    /**
+     * Toggles the loading state for a button and the mini loader.
+     * @param {HTMLElement} btn - The button element.
+     * @param {boolean} isLoading - The loading state (true/false).
+     * @param {string} statusText - The text to display in the mini status area.
+     */
+    function toggleLoading(btn, isLoading, statusText = '') {
+      btn.disabled = isLoading;
+      if (isLoading) {
+        miniLoader.style.display = 'block';
+        miniStatus.textContent = statusText;
+      } else {
+        miniLoader.style.display = 'none';
+        miniStatus.textContent = '';
+      }
+    }
+
+    /**
+     * Logic for checking GPS location.
+     */
+    async function checkGPS(e) {
+      playClick();
+      doRipple(e);
+      appendLog(translations[currentLang].logCheckingGPS);
+      gpsStatus.textContent = translations[currentLang].logRequestingLocation.replace('...', '');
+      toggleLoading(btnGPS, true, translations[currentLang].logRequestingLocation);
+
+      if (!navigator.geolocation) {
+        appendLog(translations[currentLang].logGPSNoSupport);
+        gpsStatus.innerHTML = `<span class="error-text">No API</span>`;
+        toggleLoading(btnGPS, false);
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          appendLog(`${translations[currentLang].logGPSOK} ${latitude.toFixed(6)}, lon: ${longitude.toFixed(6)}, acc: ${accuracy}m`);
+          gpsStatus.innerHTML = `<span class="success">OK</span>`;
+          toggleLoading(btnGPS, false, translations[currentLang].logLocationReceived);
+        },
+        (err) => {
+          const errorMessage = getGeolocationErrorMessage(err);
+          appendLog(errorMessage);
+          gpsStatus.innerHTML = `<span class="error-text">Error</span>`;
+          toggleLoading(btnGPS, false, 'Error');
+        },
+        { enableHighAccuracy: true, timeout: 15000 }
+      );
+    }
+
+    /**
+     * Logic for checking DNS records.
+     */
+    async function checkDNS(e) {
+      playClick();
+      doRipple(e);
+      const name = dnsName.value.trim() || 'example.com';
+      appendLog(`${translations[currentLang].logCheckingDNS} ${name}...`);
+      dnsStatus.textContent = translations[currentLang].logQueryingDNS.replace('...', '');
+      toggleLoading(e.currentTarget, true, translations[currentLang].logQueryingDNS);
+
+      try {
+        const url = `https://dns.google/resolve?name=${encodeURIComponent(name)}&type=A`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (data.Status === 0 && data.Answer) {
+          const ips = data.Answer.filter(a => a.type === 1).map(a => a.data);
+          appendLog(`${translations[currentLang].logDNSOK} ${ips.join(', ')}`);
+          dnsStatus.innerHTML = `<span class="success">OK</span>`;
+        } else {
+          appendLog(translations[currentLang].logDNSNoA);
+          dnsStatus.innerHTML = `<span class="error-text">No A</span>`;
+        }
+      } catch (err) {
+        appendLog(translations[currentLang].logDNSError + err.message);
+        dnsStatus.innerHTML = `<span class="error-text">Error</span>`;
+      } finally {
+        toggleLoading(e.currentTarget, false);
+      }
+    }
+
+    /**
+     * Logic for checking the public IP address.
+     */
+    async function checkIPPublic(e) {
+      playClick();
+      doRipple(e);
+      appendLog(translations[currentLang].logGettingPublicIP);
+      toggleLoading(e.currentTarget, true, translations[currentLang].logContactingIPService);
+
+      try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        const j = await res.json();
+        appendLog(`${translations[currentLang].logPublicIP} ${j.ip}`);
+        ipPublicEl.textContent = j.ip;
+      } catch (err) {
+        appendLog(translations[currentLang].logPublicIPError + err.message);
+        ipPublicEl.innerHTML = `<span class="error-text">Error</span>`;
+      } finally {
+        toggleLoading(e.currentTarget, false);
+      }
+    }
+
+    /**
+     * Logic for checking the local IP address using WebRTC.
+     */
+    async function checkIPLocal(e) {
+      playClick();
+      doRipple(e);
+      appendLog(translations[currentLang].logGettingLocalIP);
+      toggleLoading(e.currentTarget, true, translations[currentLang].logCreatingPeerConnection);
+      ipLocalEl.textContent = '—';
+
+      try {
+        const ips = new Set();
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        pc.createDataChannel('');
+        pc.onicecandidate = (ev) => {
+          if (!ev.candidate) return;
+          const parts = ev.candidate.candidate.split(' ');
+          for (let i = 0; i < parts.length; i++) {
+            const p = parts[i];
+            if (p.match(/\d+\.\d+\.\d+\.\d+/)) ips.add(p);
+          }
+        };
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        // wait a bit
+        await new Promise(res => setTimeout(res, 1200));
+        if (ips.size) {
+          const list = Array.from(ips).join(', ');
+          appendLog(`${translations[currentLang].logLocalIPFound} ${list}`);
+          ipLocalEl.textContent = list;
+        } else {
+          appendLog(translations[currentLang].logLocalIPUnavailable);
+          ipLocalEl.innerHTML = `<span class="error-text">Unavailable</span>`;
+        }
+        pc.close();
+      } catch (err) {
+        appendLog(translations[currentLang].logLocalIPError + err.message);
+        ipLocalEl.innerHTML = `<span class="error-text">Error</span>`;
+      } finally {
+        toggleLoading(e.currentTarget, false);
+      }
+    }
+
+    /**
+     * Animates the speedometer gauge, including the needle.
+     * @param {number} targetSpeed - The final speed value to reach.
+     * @param {string} label - The label for the test (Tải về / Tải lên).
+     */
+    function animateSpeedometer(targetSpeed, label) {
+      let currentSpeed = 0;
+      const duration = 1500; // Animation duration in ms
+      const start = performance.now();
+      const maxSpeed = 100; // Max speed for the gauge, adjust as needed
+      
+      speedLabelEl.textContent = label;
+      
+      return new Promise(resolve => {
+        const animate = (currentTime) => {
+          const elapsed = currentTime - start;
+          const progress = Math.min(elapsed / duration, 1);
+          
+          currentSpeed = progress * targetSpeed;
+          
+          // Update speed text
+          speedTextEl.textContent = currentSpeed.toFixed(2);
+          
+          // Update the circular progress bar
+          const angle = (currentSpeed / maxSpeed) * 360;
+          outerCircleEl.style.background = `conic-gradient(var(--accent) ${angle}deg, rgba(255,255,255,0.06) ${angle}deg)`;
+
+          // Update needle rotation (from 0 to 180 degrees for half circle)
+          const needleAngle = (currentSpeed / maxSpeed) * 180;
+          speedometerNeedleEl.style.transform = `translateX(-50%) rotate(${needleAngle - 90}deg)`;
+          
+          if (progress < 1) {
+            requestAnimationFrame(animate);
+          } else {
+            resolve();
+          }
+        };
+        requestAnimationFrame(animate);
+      });
+    }
+
+    /**
+     * Logic for a simulated network speed test.
+     */
+    async function checkSpeed(e) {
+      playClick();
+      doRipple(e);
+      appendLog(translations[currentLang].logStartingSpeedTest);
+      toggleLoading(e.currentTarget, true, translations[currentLang].logStartingSpeedTest);
+      
+      // Hide results, show speedometer
+      speedResultsEl.style.display = 'none';
+      speedometerEl.style.display = 'block';
+
+      // Reset speedometer
+      speedTextEl.textContent = '0.00';
+      outerCircleEl.style.background = `conic-gradient(var(--accent) 0%, var(--accent-2) 0%)`;
+      speedometerNeedleEl.style.transform = `translateX(-50%) rotate(-90deg)`;
+
+      // Simulate download
+      appendLog(translations[currentLang].logMeasuringDownload);
+      await new Promise(res => setTimeout(res, 500)); // Delay for effect
+      const downloadSpeed = (Math.random() * 80) + 10; // Random speed from 10-90 Mbps
+      await animateSpeedometer(downloadSpeed, translations[currentLang].speedometerLabelDownload);
+      appendLog(`${translations[currentLang].logDownloadSpeed} ${downloadSpeed.toFixed(2)} ${translations[currentLang].speedUnit}`);
+      downloadSpeedEl.textContent = `${downloadSpeed.toFixed(2)} ${translations[currentLang].speedUnit}`;
+
+      // Simulate upload
+      await new Promise(res => setTimeout(res, 1000)); // Delay for next test
+      appendLog(translations[currentLang].logMeasuringUpload);
+      const uploadSpeed = (Math.random() * 40) + 5; // Random speed from 5-45 Mbps
+      await animateSpeedometer(uploadSpeed, translations[currentLang].speedometerLabelUpload);
+      appendLog(`${translations[currentLang].logUploadSpeed} ${uploadSpeed.toFixed(2)} ${translations[currentLang].speedUnit}`);
+      uploadSpeedEl.textContent = `${uploadSpeed.toFixed(2)} ${translations[currentLang].speedUnit}`;
+
+      // Hide speedometer, show results
+      speedometerEl.style.display = 'none';
+      speedResultsEl.style.display = 'grid';
+
+      toggleLoading(e.currentTarget, false);
+      appendLog(translations[currentLang].logSpeedTestComplete);
+    }
+
+    // Add event listeners for all buttons
+    btnGPS.addEventListener('click', checkGPS);
+    btnIPPublic.addEventListener('click', checkIPPublic);
+    btnIPLocal.addEventListener('click', checkIPLocal);
+    btnCheckDnsServer.addEventListener('click', checkDNS);
+    btnCheckWebIP.addEventListener('click', checkIPPublic);
+    btnSpeed.addEventListener('click', checkSpeed);
+    
+    // add keyboard accessible ripple and sound
+    document.querySelectorAll('.btn, .key').forEach(b => {
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') b.click();
+      });
+    });
+
+  </script>
+</body>
+</html>
+
